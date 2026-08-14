@@ -12,222 +12,255 @@
     --x:#00e5ff; --y:#00ff88; --z:#ff6b35; --warn:#ffaa00; --crit:#ff3333;
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
+  html,body{height:100%;overflow:hidden}
   body{
     background:var(--bg);color:#fff;
     font-family:'Courier New',ui-monospace,monospace;
-    padding:20px 16px calc(40px + env(safe-area-inset-bottom));
-    max-width:420px;margin:0 auto;
     -webkit-user-select:none;user-select:none;
   }
-  .lbl{font-size:9px;letter-spacing:4px;color:var(--dim);text-transform:uppercase}
-  .panel{background:var(--panel);border:1px solid var(--line);border-radius:4px;padding:16px;margin-bottom:16px}
+  #app{
+    height:100dvh;
+    max-width:430px;margin:0 auto;
+    padding:8px 12px calc(8px + env(safe-area-inset-bottom));
+    display:flex;flex-direction:column;gap:8px;
+  }
+  .lbl{font-size:8px;letter-spacing:3px;color:var(--dim);text-transform:uppercase}
+  .panel{background:var(--panel);border:1px solid var(--line);border-radius:4px}
 
-  header{display:flex;justify-content:space-between;align-items:center;margin-bottom:28px}
-  h1{font-size:20px;font-weight:700;letter-spacing:2px}
-  #rec{width:10px;height:10px;border-radius:50%;background:#333;transition:.3s}
+  /* ---------- header ---------- */
+  header{display:flex;justify-content:space-between;align-items:center;flex:0 0 auto}
+  h1{font-size:14px;font-weight:700;letter-spacing:2px}
+  #rec{width:8px;height:8px;border-radius:50%;background:#333;transition:.3s}
   #rec.on{background:var(--y);box-shadow:0 0 8px var(--y)}
 
-  #total{font-size:64px;font-weight:900;letter-spacing:-2px;line-height:1;transition:color .1s}
-  .center{text-align:center}
+  /* ---------- top row: plot + readout ---------- */
+  .top{display:flex;gap:10px;flex:0 0 auto;align-items:stretch}
 
-  /* --- XY plot --- */
-  #plot{position:relative;width:180px;height:180px;margin:0 auto;
+  #plot{position:relative;width:132px;height:132px;flex:0 0 132px;
     border-radius:50%;border:1px solid #2a2a2a;
     background:radial-gradient(circle,#0a0a0a 60%,#111 100%)}
   .ring{position:absolute;border-radius:50%;border:1px dashed #1e1e1e;
     width:50%;height:50%;top:25%;left:25%}
   .cross-h{position:absolute;top:50%;left:0;right:0;height:1px;background:#1e1e1e}
   .cross-v{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#1e1e1e}
-  .axis{position:absolute;font-size:9px;color:#333;letter-spacing:1px}
-  #dot{position:absolute;width:10px;height:10px;border-radius:50%;
+  .axis{position:absolute;font-size:8px;color:#333}
+  #dot{position:absolute;width:9px;height:9px;border-radius:50%;
     transform:translate(-50%,-50%);top:50%;left:50%;z-index:10;
     transition:top .05s,left .05s,background .1s,box-shadow .1s}
-  #glow{position:absolute;width:16px;height:16px;border-radius:50%;
+  #glow{position:absolute;width:15px;height:15px;border-radius:50%;
     opacity:.15;filter:blur(6px);transform:translate(-50%,-50%);
     top:50%;left:50%;transition:top .08s,left .08s}
 
-  /* --- bars --- */
-  .bar-row{margin-bottom:20px}
-  .bar-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px}
-  .bar-val{font-size:22px;font-weight:700;letter-spacing:1px}
-  .bar-val span{font-size:11px;color:#666;margin-left:4px}
-  .track{position:relative;height:10px;background:#111;border-radius:2px;overflow:hidden}
+  .readout{flex:1;display:flex;flex-direction:column;justify-content:space-between}
+  #total{font-size:46px;font-weight:900;letter-spacing:-2px;line-height:.9;transition:color .1s}
+  .peak-grid{display:flex;gap:6px}
+  .peak-cell{flex:1;text-align:center;background:var(--panel);
+    border:1px solid var(--line);border-radius:3px;padding:3px 0}
+  .peak-cell .a{font-size:7px;color:var(--dim);letter-spacing:2px}
+  .peak-cell .n{font-size:13px;font-weight:700;line-height:1.3}
+
+  /* ---------- bars ---------- */
+  .bars{flex:0 0 auto;padding:8px 10px}
+  .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
+  .bar-row:last-child{margin-bottom:0}
+  .bar-name{font-size:8px;letter-spacing:2px;color:#666;width:26px;flex:0 0 26px}
+  .track{position:relative;flex:1;height:8px;background:#111;border-radius:2px;overflow:hidden}
   .track::after{content:'';position:absolute;left:50%;top:0;width:1px;height:100%;background:#333;z-index:2}
   .fill{position:absolute;height:100%;opacity:.85;transition:width .05s,left .05s}
-  .fill.blur{opacity:.2;filter:blur(4px)}
+  .bar-val{font-size:13px;font-weight:700;width:56px;flex:0 0 56px;text-align:right}
 
-  /* --- waveform --- */
-  canvas{display:block;width:100%;height:40px}
-  .wave-lbl{font-size:8px;letter-spacing:2px;margin:6px 0 2px}
+  /* ---------- waveform ---------- */
+  .waves{flex:1 1 auto;min-height:0;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
+  .wave-cell{flex:1;min-height:0;display:flex;align-items:center;gap:6px}
+  .wave-cell b{font-size:8px;letter-spacing:1px;width:10px;flex:0 0 10px}
+  canvas{display:block;width:100%;height:100%;flex:1;min-height:0}
 
-  /* --- peak --- */
-  .peak-grid{display:flex;gap:16px}
-  .peak-cell{flex:1;text-align:center}
-  .peak-cell .n{font-size:20px;font-weight:700}
-  .peak-cell .a{font-size:9px;color:var(--dim);letter-spacing:2px;margin-bottom:4px}
-  #reset{background:none;border:1px solid #222;color:#555;font-family:inherit;
-    font-size:9px;letter-spacing:2px;padding:2px 8px;border-radius:2px}
-
-  /* --- buttons --- */
-  button{cursor:pointer}
-  .btn{width:100%;padding:14px;border:none;border-radius:2px;font-family:inherit;
-    font-size:12px;font-weight:700;letter-spacing:4px;background:var(--x);color:#000}
-  .btn.ghost{background:none;color:#555;border:1px solid #222;font-weight:400;font-size:11px}
+  /* ---------- controls ---------- */
+  .ctrl{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
+  .ctrl-row{display:flex;gap:6px}
+  button{cursor:pointer;font-family:inherit;border-radius:3px}
+  .mini{flex:1;padding:7px 2px;background:none;border:1px solid #1e1e1e;
+    color:#555;font-size:9px;letter-spacing:1px}
+  .mini.active{border-color:var(--warn);color:var(--warn)}
+  #zero{border-color:#1f4d3a;color:var(--y)}
+  .btn{width:100%;padding:11px;border:none;font-size:11px;font-weight:700;
+    letter-spacing:3px;background:var(--x);color:#000}
+  .btn.ghost{background:none;color:#555;border:1px solid #222;font-weight:400}
   .hide{display:none!important}
-  #err{text-align:center;color:var(--crit);font-size:11px;letter-spacing:2px;line-height:1.7}
-  #err small{color:#555;letter-spacing:1px}
-  footer{text-align:center;margin-top:20px;font-size:9px;color:#2a2a2a;letter-spacing:2px}
+  #err{text-align:center;color:var(--crit);font-size:10px;line-height:1.6}
+  #err small{color:#555}
 </style>
 </head>
 <body>
+<div id="app">
 
-<header>
-  <div>
-    <div class="lbl" style="margin-bottom:2px">Circuit Telemetry</div>
+  <header>
     <h1>G-FORCE MONITOR</h1>
+    <div id="rec"></div>
+  </header>
+
+  <div class="top">
+    <div id="plot">
+      <div class="ring"></div>
+      <div class="cross-h"></div><div class="cross-v"></div>
+      <span class="axis" style="top:3px;left:50%;transform:translateX(-50%)">−Y</span>
+      <span class="axis" style="bottom:3px;left:50%;transform:translateX(-50%)">+Y</span>
+      <span class="axis" style="left:3px;top:50%;transform:translateY(-50%)">−X</span>
+      <span class="axis" style="right:3px;top:50%;transform:translateY(-50%)">+X</span>
+      <div id="glow"></div>
+      <div id="dot"></div>
+    </div>
+
+    <div class="readout">
+      <div>
+        <div class="lbl">Total Vector</div>
+        <div id="total">0.00</div>
+      </div>
+      <div>
+        <div class="lbl" style="margin-bottom:3px">Peak G</div>
+        <div class="peak-grid">
+          <div class="peak-cell"><div class="a">X</div><div class="n" id="px" style="color:var(--x)">0.00</div></div>
+          <div class="peak-cell"><div class="a">Y</div><div class="n" id="py" style="color:var(--y)">0.00</div></div>
+          <div class="peak-cell"><div class="a">Z</div><div class="n" id="pz" style="color:var(--z)">0.00</div></div>
+        </div>
+      </div>
+    </div>
   </div>
-  <div id="rec"></div>
-</header>
 
-<div class="center" style="margin-bottom:24px">
-  <div class="lbl" style="margin-bottom:4px">Total Vector</div>
-  <div id="total">0.00</div>
-  <div style="font-size:13px;color:#555;letter-spacing:3px;margin-top:4px">G</div>
-</div>
+  <div class="panel bars" id="bars"></div>
 
-<div style="margin-bottom:24px">
-  <div class="lbl center" style="margin-bottom:10px">Lateral / Longitudinal Plane</div>
-  <div id="plot">
-    <div class="ring"></div>
-    <div class="cross-h"></div><div class="cross-v"></div>
-    <span class="axis" style="top:4px;left:50%;transform:translateX(-50%)">−Y</span>
-    <span class="axis" style="bottom:4px;left:50%;transform:translateX(-50%)">+Y</span>
-    <span class="axis" style="left:4px;top:50%;transform:translateY(-50%)">−X</span>
-    <span class="axis" style="right:4px;top:50%;transform:translateY(-50%)">+X</span>
-    <div id="glow"></div>
-    <div id="dot"></div>
+  <div class="panel waves">
+    <div class="wave-cell"><b style="color:var(--x)">X</b><canvas id="wx"></canvas></div>
+    <div class="wave-cell"><b style="color:var(--y)">Y</b><canvas id="wy"></canvas></div>
+    <div class="wave-cell"><b style="color:var(--z)">Z</b><canvas id="wz"></canvas></div>
   </div>
-</div>
 
-<div class="panel" style="padding-bottom:8px" id="bars"></div>
-
-<div class="panel" style="padding:12px 16px">
-  <div class="lbl" style="margin-bottom:8px">Waveform</div>
-  <div class="wave-lbl" style="color:var(--x)">X</div><canvas id="wx"></canvas>
-  <div class="wave-lbl" style="color:var(--y)">Y</div><canvas id="wy"></canvas>
-  <div class="wave-lbl" style="color:var(--z)">Z</div><canvas id="wz"></canvas>
-</div>
-
-<div class="panel" style="padding:12px 16px;margin-bottom:24px">
-  <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
-    <div class="lbl">Peak G</div>
-    <button id="reset">RESET</button>
+  <div class="ctrl">
+    <div class="ctrl-row">
+      <button class="mini" id="zero">0点補正</button>
+      <button class="mini" id="reset">PEAK<br>RESET</button>
+      <button class="mini" id="iLat">横G<br>反転</button>
+      <button class="mini" id="iLon">前後G<br>反転</button>
+      <button class="mini" id="iVert">上下G<br>反転</button>
+    </div>
+    <button id="enable" class="btn">ENABLE SENSOR</button>
+    <button id="start"  class="btn hide">START</button>
+    <button id="stop"   class="btn ghost hide">STOP</button>
+    <div id="err" class="hide">
+      センサーアクセスが拒否されました<br>
+      <small>設定 › Safari › モーションとフィットネス を有効に</small>
+    </div>
   </div>
-  <div class="peak-grid">
-    <div class="peak-cell"><div class="a">X</div><div class="n" id="px" style="color:var(--x)">0.000</div></div>
-    <div class="peak-cell"><div class="a">Y</div><div class="n" id="py" style="color:var(--y)">0.000</div></div>
-    <div class="peak-cell"><div class="a">Z</div><div class="n" id="pz" style="color:var(--z)">0.000</div></div>
-  </div>
-</div>
 
-<button id="enable" class="btn">ENABLE SENSOR</button>
-<button id="start"  class="btn hide">START</button>
-<button id="stop"   class="btn ghost hide">STOP</button>
-<div id="err" class="hide">
-  センサーアクセスが拒否されました<br>
-  <small>設定 › Safari › モーションとフィットネス を有効にしてください</small>
 </div>
-
-<footer>UNIT G (9.81 m/s²) · ACCEL INCL. GRAVITY</footer>
 
 <script>
 (() => {
   const MAX_G = 2.0, HIST = 80;
   const AXES = [
-    {k:'x', label:'X  Lateral',      color:'#00e5ff'},
-    {k:'y', label:'Y  Longitudinal', color:'#00ff88'},
-    {k:'z', label:'Z  Vertical',     color:'#ff6b35'},
+    {k:'x', name:'LAT', color:'#00e5ff'},
+    {k:'y', name:'LON', color:'#00ff88'},
+    {k:'z', name:'VRT', color:'#ff6b35'},
   ];
-
   const clamp = (v,a,b) => Math.min(Math.max(v,a),b);
   const $ = id => document.getElementById(id);
 
-  // ---- build bars ----
+  // ---- bars ----
   const bars = {};
   AXES.forEach(ax => {
     const row = document.createElement('div');
     row.className = 'bar-row';
     row.innerHTML = `
-      <div class="bar-head">
-        <span class="lbl">${ax.label}</span>
-        <span class="bar-val" style="color:${ax.color}">+0.000<span>G</span></span>
-      </div>
-      <div class="track">
-        <div class="fill blur" style="background:${ax.color}"></div>
-        <div class="fill"      style="background:${ax.color}"></div>
-      </div>`;
+      <span class="bar-name">${ax.name}</span>
+      <div class="track"><div class="fill" style="background:${ax.color}"></div></div>
+      <span class="bar-val" style="color:${ax.color}">+0.00</span>`;
     $('bars').appendChild(row);
-    bars[ax.k] = {
-      val: row.querySelector('.bar-val'),
-      fills: row.querySelectorAll('.fill')
-    };
+    bars[ax.k] = { val: row.querySelector('.bar-val'), fill: row.querySelector('.fill') };
   });
 
-  // ---- canvases (hi-dpi) ----
+  // ---- canvases: size from real layout, re-measure on resize ----
   const waves = {};
-  AXES.forEach(ax => {
-    const c = $('w' + ax.k), dpr = window.devicePixelRatio || 1;
-    const w = c.clientWidth || 300, h = 40;
-    c.width = w * dpr; c.height = h * dpr;
-    const ctx = c.getContext('2d');
-    ctx.scale(dpr, dpr);
-    waves[ax.k] = {ctx, w, h, color: ax.color, data: new Array(HIST).fill(0)};
-  });
+  AXES.forEach(ax => { waves[ax.k] = {color: ax.color, data: new Array(HIST).fill(0)}; });
+
+  function sizeCanvases(){
+    AXES.forEach(ax => {
+      const c = $('w' + ax.k), dpr = window.devicePixelRatio || 1;
+      const w = c.clientWidth || 300, h = c.clientHeight || 24;
+      c.width = w * dpr; c.height = h * dpr;
+      const ctx = c.getContext('2d');
+      ctx.setTransform(dpr,0,0,dpr,0,0);
+      Object.assign(waves[ax.k], {ctx, w, h});
+    });
+  }
+  window.addEventListener('resize', () => { sizeCanvases(); dirty = true; });
+  window.addEventListener('orientationchange', () => setTimeout(() => { sizeCanvases(); dirty = true; }, 300));
 
   function drawWave(k){
-    const {ctx,w,h,color,data} = waves[k];
+    const wv = waves[k];
+    if(!wv.ctx) return;
+    const {ctx,w,h,color,data} = wv;
     ctx.clearRect(0,0,w,h);
     ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1;
     ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke();
-    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.globalAlpha = .8;
+    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.globalAlpha = .85;
     ctx.beginPath();
     data.forEach((v,i) => {
       const x = (i/(HIST-1))*w;
-      const y = h/2 - clamp(v/MAX_G,-1,1)*(h/2-2);
+      const y = h/2 - clamp(v/MAX_G,-1,1)*(h/2-1);
       i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
     });
     ctx.stroke(); ctx.globalAlpha = 1;
   }
 
+  // ---- axis sign + zero calibration ----
+  let invert = { x:1, y:1, z:1 };
+  let offset = { x:0, y:0, z:0 };
+  let lastRaw = { x:0, y:0, z:0 };
+
+  function bindInvert(id, k){
+    $(id).addEventListener('click', () => {
+      invert[k] *= -1;
+      $(id).classList.toggle('active');
+      offset = {x:0,y:0,z:0};   // sign flip invalidates prior calibration
+    });
+  }
+  bindInvert('iLat','x'); bindInvert('iLon','y'); bindInvert('iVert','z');
+
+  $('zero').addEventListener('click', () => {
+    offset = { x:lastRaw.x*invert.x, y:lastRaw.y*invert.y, z:lastRaw.z*invert.z };
+    const b = $('zero'), t = b.innerHTML;
+    b.innerHTML = '完了 ✓';
+    setTimeout(() => { b.innerHTML = t; }, 1000);
+  });
+  $('reset').addEventListener('click', () => { peak = {x:0,y:0,z:0}; dirty = true; });
+
   // ---- state ----
-  let g = {x:0,y:0,z:0}, peak = {x:0,y:0,z:0}, running = false, dirty = false;
+  let g = {x:0,y:0,z:0}, peak = {x:0,y:0,z:0}, dirty = false;
 
   function onMotion(e){
     const a = e.accelerationIncludingGravity || e.acceleration;
     if(!a) return;
-    g = {x:(a.x||0)/9.81, y:(a.y||0)/9.81, z:(a.z||0)/9.81};
+    lastRaw = {x:(a.x||0)/9.81, y:(a.y||0)/9.81, z:(a.z||0)/9.81};
     AXES.forEach(ax => {
-      peak[ax.k] = Math.max(peak[ax.k], Math.abs(g[ax.k]));
-      const d = waves[ax.k].data; d.shift(); d.push(g[ax.k]);
+      const k = ax.k;
+      g[k] = lastRaw[k]*invert[k] - offset[k];
+      peak[k] = Math.max(peak[k], Math.abs(g[k]));
+      const d = waves[k].data; d.shift(); d.push(g[k]);
     });
     dirty = true;
   }
 
-  // render on rAF, decoupled from sensor rate
   function render(){
     if(dirty){
       dirty = false;
       AXES.forEach(ax => {
-        const v = g[ax.k], pct = clamp(Math.abs(v)/MAX_G,0,1)*100, half = pct/2;
-        bars[ax.k].val.innerHTML = `${v>=0?'+':''}${v.toFixed(3)}<span>G</span>`;
-        bars[ax.k].fills.forEach(f => {
-          f.style.width = half + '%';
-          f.style.left  = (v>=0 ? 50 : 50-half) + '%';
-        });
-        $('p'+ax.k).textContent = peak[ax.k].toFixed(3);
-        drawWave(ax.k);
+        const k = ax.k, v = g[k], half = clamp(Math.abs(v)/MAX_G,0,1)*50;
+        bars[k].val.textContent = (v>=0?'+':'') + v.toFixed(2);
+        bars[k].fill.style.width = half + '%';
+        bars[k].fill.style.left  = (v>=0 ? 50 : 50-half) + '%';
+        $('p'+k).textContent = peak[k].toFixed(2);
+        drawWave(k);
       });
-
       const cx = clamp(g.x/MAX_G,-1,1)*50, cy = clamp(-g.y/MAX_G,-1,1)*50;
       const mag = Math.min(Math.hypot(g.x,g.y)/MAX_G,1);
       const col = mag>.7 ? '#ff3333' : mag>.4 ? '#ffaa00' : '#00e5ff';
@@ -236,14 +269,12 @@
       dot.style.background = col; dot.style.boxShadow = `0 0 8px 2px ${col}`;
       glow.style.top = `calc(50% + ${cy*.85}%)`; glow.style.left = `calc(50% + ${cx*.85}%)`;
       glow.style.background = col;
-
       const t = Math.hypot(g.x,g.y,g.z), el = $('total');
       el.textContent = t.toFixed(2);
       el.style.color = t>1.5 ? '#ff3333' : t>.8 ? '#ffaa00' : '#fff';
     }
     requestAnimationFrame(render);
   }
-  requestAnimationFrame(render);
 
   // ---- controls ----
   const needsPermission = typeof DeviceMotionEvent !== 'undefined'
@@ -251,7 +282,6 @@
 
   function start(){
     window.addEventListener('devicemotion', onMotion);
-    running = true;
     $('rec').classList.add('on');
     $('start').classList.add('hide');
     $('enable').classList.add('hide');
@@ -259,7 +289,6 @@
   }
   function stop(){
     window.removeEventListener('devicemotion', onMotion);
-    running = false;
     $('rec').classList.remove('on');
     $('stop').classList.add('hide');
     $('start').classList.remove('hide');
@@ -278,20 +307,20 @@
   });
   $('start').addEventListener('click', start);
   $('stop').addEventListener('click', stop);
-  $('reset').addEventListener('click', () => { peak = {x:0,y:0,z:0}; dirty = true; });
 
-  // Android / older iOS: no permission prompt needed
   if(!needsPermission){
     $('enable').textContent = 'START';
     if(typeof DeviceMotionEvent !== 'undefined') start();
   }
 
-  // keep screen awake on track (best effort)
   if('wakeLock' in navigator){
     document.addEventListener('click', () => {
       navigator.wakeLock.request('screen').catch(()=>{});
     }, {once:true});
   }
+
+  sizeCanvases();
+  requestAnimationFrame(render);
 })();
 </script>
 </body>
