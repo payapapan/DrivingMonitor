@@ -5,7 +5,7 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black">
-<title>G-FORCE MONITOR</title>
+<title>DRIVE MONITOR</title>
 <style>
   :root{
     --bg:#080808; --panel:#0d0d0d; --line:#1a1a1a; --dim:#444;
@@ -13,81 +13,88 @@
   }
   *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
   html,body{height:100%;overflow:hidden}
-  body{
-    background:var(--bg);color:#fff;
-    font-family:'Courier New',ui-monospace,monospace;
-    -webkit-user-select:none;user-select:none;
-  }
-  #app{
-    height:100dvh;
-    max-width:430px;margin:0 auto;
+  body{background:var(--bg);color:#fff;font-family:'Courier New',ui-monospace,monospace;
+    -webkit-user-select:none;user-select:none}
+  #app{height:100dvh;max-width:430px;margin:0 auto;
     padding:8px 12px calc(8px + env(safe-area-inset-bottom));
-    display:flex;flex-direction:column;gap:8px;
-  }
+    display:flex;flex-direction:column;gap:8px}
   .lbl{font-size:8px;letter-spacing:3px;color:var(--dim);text-transform:uppercase}
   .panel{background:var(--panel);border:1px solid var(--line);border-radius:4px}
+  .hide{display:none!important}
+  button{cursor:pointer;font-family:inherit;border-radius:4px}
 
-  /* ---------- header ---------- */
   header{display:flex;justify-content:space-between;align-items:center;flex:0 0 auto}
-  h1{font-size:14px;font-weight:700;letter-spacing:2px}
+  h1{font-size:13px;font-weight:700;letter-spacing:2px}
   #rec{width:8px;height:8px;border-radius:50%;background:#333;transition:.3s}
   #rec.on{background:var(--y);box-shadow:0 0 8px var(--y)}
+  .tabs{display:flex;gap:6px;flex:0 0 auto}
+  .tab{flex:1;padding:8px;background:none;border:1px solid #1e1e1e;color:#555;
+    font-size:10px;letter-spacing:3px}
+  .tab.active{border-color:var(--x);color:var(--x)}
+  .view{flex:1;min-height:0;display:flex;flex-direction:column;gap:8px}
 
-  /* ---------- top row: plot + readout ---------- */
-  .top{display:flex;gap:10px;flex:0 0 auto;align-items:stretch}
-
-  #plot{position:relative;width:132px;height:132px;flex:0 0 132px;
-    border-radius:50%;border:1px solid #2a2a2a;
-    background:radial-gradient(circle,#0a0a0a 60%,#111 100%)}
-  .ring{position:absolute;border-radius:50%;border:1px dashed #1e1e1e;
-    width:50%;height:50%;top:25%;left:25%}
-  .cross-h{position:absolute;top:50%;left:0;right:0;height:1px;background:#1e1e1e}
-  .cross-v{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#1e1e1e}
-  .axis{position:absolute;font-size:8px;color:#333}
-  #dot{position:absolute;width:9px;height:9px;border-radius:50%;
+  /* ---------- monitor : large circle ---------- */
+  .plot-wrap{flex:1;min-height:0;display:flex;align-items:center;justify-content:center;position:relative}
+  #plot{position:relative;border-radius:50%;border:1px solid #2a2a2a;
+    background:radial-gradient(circle,#0a0a0a 55%,#111 100%);flex:0 0 auto}
+  .ring{position:absolute;border-radius:50%;border:1px dashed #1c1c1c}
+  .r50{width:50%;height:50%;top:25%;left:25%}
+  .r25{width:25%;height:25%;top:37.5%;left:37.5%}
+  .cross-h{position:absolute;top:50%;left:0;right:0;height:1px;background:#1c1c1c}
+  .cross-v{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#1c1c1c}
+  .axis{position:absolute;font-size:11px;color:#3a3a3a;letter-spacing:1px}
+  #dot{position:absolute;width:18px;height:18px;border-radius:50%;
     transform:translate(-50%,-50%);top:50%;left:50%;z-index:10;
     transition:top .05s,left .05s,background .1s,box-shadow .1s}
-  #glow{position:absolute;width:15px;height:15px;border-radius:50%;
-    opacity:.15;filter:blur(6px);transform:translate(-50%,-50%);
-    top:50%;left:50%;transition:top .08s,left .08s}
+  #glow{position:absolute;width:34px;height:34px;border-radius:50%;opacity:.18;filter:blur(10px);
+    transform:translate(-50%,-50%);top:50%;left:50%;transition:top .08s,left .08s}
+  /* total G sits in the middle of the circle, dimmed so the dot stays readable */
+  #totalWrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
+    text-align:center;pointer-events:none;z-index:5}
+  #total{font-size:56px;font-weight:900;letter-spacing:-3px;line-height:.9;
+    opacity:.55;transition:color .1s}
+  #totalWrap .lbl{opacity:.5;margin-top:2px}
 
-  .readout{flex:1;display:flex;flex-direction:column;justify-content:space-between}
-  #total{font-size:46px;font-weight:900;letter-spacing:-2px;line-height:.9;transition:color .1s}
-  .peak-grid{display:flex;gap:6px}
-  .peak-cell{flex:1;text-align:center;background:var(--panel);
-    border:1px solid var(--line);border-radius:3px;padding:3px 0}
-  .peak-cell .a{font-size:7px;color:var(--dim);letter-spacing:2px}
-  .peak-cell .n{font-size:13px;font-weight:700;line-height:1.3}
+  /* ---------- axis readout strip ---------- */
+  .strip{flex:0 0 auto;display:flex;gap:6px}
+  .cell{flex:1;background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    padding:6px 4px;text-align:center}
+  .cell .a{font-size:8px;color:var(--dim);letter-spacing:2px}
+  .cell .n{font-size:20px;font-weight:700;line-height:1.25}
+  .cell .p{font-size:9px;color:#555}
 
-  /* ---------- bars ---------- */
-  .bars{flex:0 0 auto;padding:8px 10px}
-  .bar-row{display:flex;align-items:center;gap:8px;margin-bottom:7px}
-  .bar-row:last-child{margin-bottom:0}
-  .bar-name{font-size:8px;letter-spacing:2px;color:#666;width:26px;flex:0 0 26px}
-  .track{position:relative;flex:1;height:8px;background:#111;border-radius:2px;overflow:hidden}
-  .track::after{content:'';position:absolute;left:50%;top:0;width:1px;height:100%;background:#333;z-index:2}
-  .fill{position:absolute;height:100%;opacity:.85;transition:width .05s,left .05s}
-  .bar-val{font-size:13px;font-weight:700;width:56px;flex:0 0 56px;text-align:right}
+  /* ---------- score view ---------- */
+  .score-hero{flex:0 0 auto;display:flex;align-items:center;gap:14px;padding:10px 14px}
+  #grade{font-size:52px;font-weight:900;line-height:.9}
+  #scoreNum{font-size:34px;font-weight:900;line-height:1}
+  #scoreNum span{font-size:12px;color:#555;font-weight:400}
+  .sub{flex:0 0 auto;padding:10px}
+  .sub-row{margin-bottom:9px}.sub-row:last-child{margin-bottom:0}
+  .sub-head{display:flex;justify-content:space-between;align-items:baseline;margin-bottom:3px}
+  .sub-head b{font-size:9px;letter-spacing:1px;color:#888;font-weight:400}
+  .sub-head i{font-style:normal;font-size:13px;font-weight:700}
+  .sbar{height:5px;background:#111;border-radius:2px;overflow:hidden}
+  .sbar div{height:100%;transition:width .4s}
+  .ev{flex:0 0 auto;padding:10px}
+  .ev-grid{display:flex;gap:6px}
+  .ev-cell{flex:1;text-align:center;border:1px solid var(--line);border-radius:3px;padding:5px 0}
+  .ev-cell .a{font-size:8px;color:var(--dim);line-height:1.5}
+  .ev-cell .n{font-size:19px;font-weight:700}
+  .stats{flex:1 1 auto;min-height:0;padding:10px;overflow:hidden}
+  .st-row{display:flex;justify-content:space-between;font-size:10px;
+    padding:4px 0;border-bottom:1px solid #131313;color:#777}
+  .st-row:last-child{border:none}
+  .st-row b{color:#ccc;font-weight:700}
 
-  /* ---------- waveform ---------- */
-  .waves{flex:1 1 auto;min-height:0;padding:6px 10px;display:flex;flex-direction:column;gap:2px}
-  .wave-cell{flex:1;min-height:0;display:flex;align-items:center;gap:6px}
-  .wave-cell b{font-size:8px;letter-spacing:1px;width:10px;flex:0 0 10px}
-  canvas{display:block;width:100%;height:100%;flex:1;min-height:0}
-
-  /* ---------- controls ---------- */
-  .ctrl{flex:0 0 auto;display:flex;flex-direction:column;gap:6px}
-  .ctrl-row{display:flex;gap:6px}
-  button{cursor:pointer;font-family:inherit;border-radius:3px}
-  .mini{flex:1;padding:7px 2px;background:none;border:1px solid #1e1e1e;
-    color:#555;font-size:9px;letter-spacing:1px}
-  .mini.active{border-color:var(--warn);color:var(--warn)}
-  #zero{border-color:#1f4d3a;color:var(--y)}
-  .btn{width:100%;padding:11px;border:none;font-size:11px;font-weight:700;
-    letter-spacing:3px;background:var(--x);color:#000}
-  .btn.ghost{background:none;color:#555;border:1px solid #222;font-weight:400}
-  .hide{display:none!important}
-  #err{text-align:center;color:var(--crit);font-size:10px;line-height:1.6}
+  /* ---------- big controls ---------- */
+  .ctrl{flex:0 0 auto;display:flex;gap:6px}
+  .big{flex:1;min-height:56px;padding:8px 4px;background:none;
+    border:1px solid #262626;color:#888;font-size:11px;font-weight:700;
+    letter-spacing:1px;line-height:1.5}
+  .big.zero{border-color:#1f4d3a;color:var(--y)}
+  .big.go{background:var(--x);color:#000;border:none;letter-spacing:2px}
+  .big.stopping{background:none;border:1px solid #4d1f1f;color:var(--crit)}
+  #err{flex:0 0 auto;text-align:center;color:var(--crit);font-size:10px;line-height:1.6}
   #err small{color:#555}
 </style>
 </head>
@@ -95,231 +102,312 @@
 <div id="app">
 
   <header>
-    <h1>G-FORCE MONITOR</h1>
+    <h1>DRIVE MONITOR</h1>
     <div id="rec"></div>
   </header>
 
-  <div class="top">
-    <div id="plot">
-      <div class="ring"></div>
-      <div class="cross-h"></div><div class="cross-v"></div>
-      <span class="axis" style="top:3px;left:50%;transform:translateX(-50%)">−Y</span>
-      <span class="axis" style="bottom:3px;left:50%;transform:translateX(-50%)">+Y</span>
-      <span class="axis" style="left:3px;top:50%;transform:translateY(-50%)">−X</span>
-      <span class="axis" style="right:3px;top:50%;transform:translateY(-50%)">+X</span>
-      <div id="glow"></div>
-      <div id="dot"></div>
-    </div>
+  <div class="tabs">
+    <button class="tab active" id="tabMon">MONITOR</button>
+    <button class="tab" id="tabScore">SCORE</button>
+  </div>
 
-    <div class="readout">
-      <div>
-        <div class="lbl">Total Vector</div>
-        <div id="total">0.00</div>
-      </div>
-      <div>
-        <div class="lbl" style="margin-bottom:3px">Peak G</div>
-        <div class="peak-grid">
-          <div class="peak-cell"><div class="a">X</div><div class="n" id="px" style="color:var(--x)">0.00</div></div>
-          <div class="peak-cell"><div class="a">Y</div><div class="n" id="py" style="color:var(--y)">0.00</div></div>
-          <div class="peak-cell"><div class="a">Z</div><div class="n" id="pz" style="color:var(--z)">0.00</div></div>
+  <!-- ============ MONITOR ============ -->
+  <div class="view" id="viewMon">
+    <div class="plot-wrap" id="plotWrap">
+      <div id="plot">
+        <div class="ring r50"></div><div class="ring r25"></div>
+        <div class="cross-h"></div><div class="cross-v"></div>
+        <span class="axis" style="top:6px;left:50%;transform:translateX(-50%)">加速</span>
+        <span class="axis" style="bottom:6px;left:50%;transform:translateX(-50%)">制動</span>
+        <span class="axis" style="left:6px;top:50%;transform:translateY(-50%)">左</span>
+        <span class="axis" style="right:6px;top:50%;transform:translateY(-50%)">右</span>
+        <div id="glow"></div>
+        <div id="totalWrap">
+          <div id="total">0.00</div>
+          <div class="lbl">Total G</div>
         </div>
+        <div id="dot"></div>
       </div>
     </div>
-  </div>
 
-  <div class="panel bars" id="bars"></div>
-
-  <div class="panel waves">
-    <div class="wave-cell"><b style="color:var(--x)">X</b><canvas id="wx"></canvas></div>
-    <div class="wave-cell"><b style="color:var(--y)">Y</b><canvas id="wy"></canvas></div>
-    <div class="wave-cell"><b style="color:var(--z)">Z</b><canvas id="wz"></canvas></div>
-  </div>
-
-  <div class="ctrl">
-    <div class="ctrl-row">
-      <button class="mini" id="zero">0点補正</button>
-      <button class="mini" id="reset">PEAK<br>RESET</button>
-      <button class="mini" id="iLat">横G<br>反転</button>
-      <button class="mini" id="iLon">前後G<br>反転</button>
-      <button class="mini" id="iVert">上下G<br>反転</button>
-    </div>
-    <button id="enable" class="btn">ENABLE SENSOR</button>
-    <button id="start"  class="btn hide">START</button>
-    <button id="stop"   class="btn ghost hide">STOP</button>
-    <div id="err" class="hide">
-      センサーアクセスが拒否されました<br>
-      <small>設定 › Safari › モーションとフィットネス を有効に</small>
+    <div class="strip">
+      <div class="cell"><div class="a">横 LAT</div>
+        <div class="n" id="vx" style="color:var(--x)">+0.00</div>
+        <div class="p">peak <span id="px">0.00</span></div></div>
+      <div class="cell"><div class="a">前後 LON</div>
+        <div class="n" id="vy" style="color:var(--y)">+0.00</div>
+        <div class="p">peak <span id="py">0.00</span></div></div>
+      <div class="cell"><div class="a">上下 VRT</div>
+        <div class="n" id="vz" style="color:var(--z)">+0.00</div>
+        <div class="p">peak <span id="pz">0.00</span></div></div>
     </div>
   </div>
 
+  <!-- ============ SCORE ============ -->
+  <div class="view hide" id="viewScore">
+    <div class="panel score-hero">
+      <div id="grade" style="color:#333">–</div>
+      <div><div class="lbl">Drive Score</div>
+        <div id="scoreNum">--<span> / 100</span></div></div>
+    </div>
+    <div class="panel sub">
+      <div class="sub-row">
+        <div class="sub-head"><b>SMOOTHNESS 滑らかさ</b><i id="s1" style="color:var(--x)">--</i></div>
+        <div class="sbar"><div id="b1" style="background:var(--x);width:0%"></div></div></div>
+      <div class="sub-row">
+        <div class="sub-head"><b>STABILITY 挙動の安定</b><i id="s2" style="color:var(--y)">--</i></div>
+        <div class="sbar"><div id="b2" style="background:var(--y);width:0%"></div></div></div>
+      <div class="sub-row">
+        <div class="sub-head"><b>COMFORT 乗り心地</b><i id="s3" style="color:var(--z)">--</i></div>
+        <div class="sbar"><div id="b3" style="background:var(--z);width:0%"></div></div></div>
+    </div>
+    <div class="panel ev">
+      <div class="lbl" style="margin-bottom:6px">検出イベント</div>
+      <div class="ev-grid">
+        <div class="ev-cell"><div class="n" id="evAcc" style="color:var(--warn)">0</div><div class="a">急加速</div></div>
+        <div class="ev-cell"><div class="n" id="evBrk" style="color:var(--crit)">0</div><div class="a">急制動</div></div>
+        <div class="ev-cell"><div class="n" id="evCor" style="color:var(--x)">0</div><div class="a">急ハンドル</div></div>
+        <div class="ev-cell"><div class="n" id="evBmp" style="color:var(--z)">0</div><div class="a">突き上げ</div></div>
+      </div>
+    </div>
+    <div class="panel stats">
+      <div class="st-row"><span>走行時間</span><b id="stTime">00:00</b></div>
+      <div class="st-row"><span>平均ジャーク 前後</span><b id="stJl">-- G/s</b></div>
+      <div class="st-row"><span>平均ジャーク 横</span><b id="stJx">-- G/s</b></div>
+      <div class="st-row"><span>イベント頻度</span><b id="stEv">-- 回/分</b></div>
+      <div class="st-row"><span>最大合成G</span><b id="stMax">-- G</b></div>
+    </div>
+  </div>
+
+  <!-- ============ CONTROLS ============ -->
+  <div class="ctrl" id="ctrlMon">
+    <button class="big zero" id="zero">0点<br>補正</button>
+    <button class="big" id="reset">PEAK<br>リセット</button>
+    <button class="big go" id="power">ENABLE<br>SENSOR</button>
+  </div>
+  <div class="ctrl hide" id="ctrlScore">
+    <button class="big" id="newSession">セッション<br>リセット</button>
+    <button class="big go" id="power2">ENABLE<br>SENSOR</button>
+  </div>
+  <div id="err" class="hide">センサーアクセスが拒否されました<br>
+    <small>設定 › Safari › モーションとフィットネス を有効に</small></div>
 </div>
 
 <script>
 (() => {
-  const MAX_G = 2.0, HIST = 80;
-  const AXES = [
-    {k:'x', name:'LAT', color:'#00e5ff'},
-    {k:'y', name:'LON', color:'#00ff88'},
-    {k:'z', name:'VRT', color:'#ff6b35'},
-  ];
+  const MAX_G = 1.2;   // full-scale of the plot; street driving rarely exceeds this
   const clamp = (v,a,b) => Math.min(Math.max(v,a),b);
   const $ = id => document.getElementById(id);
+  const K = ['x','y','z'];
 
-  // ---- bars ----
-  const bars = {};
-  AXES.forEach(ax => {
-    const row = document.createElement('div');
-    row.className = 'bar-row';
-    row.innerHTML = `
-      <span class="bar-name">${ax.name}</span>
-      <div class="track"><div class="fill" style="background:${ax.color}"></div></div>
-      <span class="bar-val" style="color:${ax.color}">+0.00</span>`;
-    $('bars').appendChild(row);
-    bars[ax.k] = { val: row.querySelector('.bar-val'), fill: row.querySelector('.fill') };
-  });
+  /* ---------- 街乗り診断のチューニング値 ----------
+     実走して調整する前提の初期値。業界標準値は未確認。 */
+  const TH = {
+    accel:0.25, brake:0.30, corner:0.30, bump:0.35,
+    debounce:1500, jerkGood:0.15, jerkBad:0.60,
+    evRateBad:4.0, vertBad:0.20,
+  };
 
-  // ---- canvases: size from real layout, re-measure on resize ----
-  const waves = {};
-  AXES.forEach(ax => { waves[ax.k] = {color: ax.color, data: new Array(HIST).fill(0)}; });
-
-  function sizeCanvases(){
-    AXES.forEach(ax => {
-      const c = $('w' + ax.k), dpr = window.devicePixelRatio || 1;
-      const w = c.clientWidth || 300, h = c.clientHeight || 24;
-      c.width = w * dpr; c.height = h * dpr;
-      const ctx = c.getContext('2d');
-      ctx.setTransform(dpr,0,0,dpr,0,0);
-      Object.assign(waves[ax.k], {ctx, w, h});
-    });
+  /* ---------- keep the G-circle perfectly round regardless of
+     available flex space (percentage height + max-width fights in
+     flexbox otherwise leave it a bit elliptical) ---------- */
+  function sizePlot(){
+    const wrap = $('plotWrap');
+    const s = Math.floor(Math.min(wrap.clientWidth, wrap.clientHeight)) - 4;
+    const plot = $('plot');
+    plot.style.width = s + 'px';
+    plot.style.height = s + 'px';
   }
-  window.addEventListener('resize', () => { sizeCanvases(); dirty = true; });
-  window.addEventListener('orientationchange', () => setTimeout(() => { sizeCanvases(); dirty = true; }, 300));
+  window.addEventListener('resize', sizePlot);
+  window.addEventListener('orientationchange', () => setTimeout(sizePlot, 300));
 
-  function drawWave(k){
-    const wv = waves[k];
-    if(!wv.ctx) return;
-    const {ctx,w,h,color,data} = wv;
-    ctx.clearRect(0,0,w,h);
-    ctx.strokeStyle = '#1e1e1e'; ctx.lineWidth = 1;
-    ctx.beginPath(); ctx.moveTo(0,h/2); ctx.lineTo(w,h/2); ctx.stroke();
-    ctx.strokeStyle = color; ctx.lineWidth = 1.5; ctx.globalAlpha = .85;
-    ctx.beginPath();
-    data.forEach((v,i) => {
-      const x = (i/(HIST-1))*w;
-      const y = h/2 - clamp(v/MAX_G,-1,1)*(h/2-1);
-      i ? ctx.lineTo(x,y) : ctx.moveTo(x,y);
-    });
-    ctx.stroke(); ctx.globalAlpha = 1;
+  /* ---------- state ---------- */
+  let g={x:0,y:0,z:0}, gs={x:0,y:0,z:0}, peak={x:0,y:0,z:0};
+  let offset={x:0,y:0,z:0}, lastRaw={x:0,y:0,z:0}, dirty=false;
+  const EMA = 0.25;
+
+  /* ---------- session ---------- */
+  let S=null;
+  function newSession(){
+    S={t0:performance.now(),active:0,lastT:0,
+       jSumLon:0,jSumLat:0,jN:0,vSum:0,vSumSq:0,vN:0,
+       ev:{acc:0,brk:0,cor:0,bmp:0}, lastEv:{acc:0,brk:0,cor:0,bmp:0},
+       maxTotal:0};
+    renderScore();
   }
-
-  // ---- axis sign + zero calibration ----
-  let invert = { x:1, y:1, z:1 };
-  let offset = { x:0, y:0, z:0 };
-  let lastRaw = { x:0, y:0, z:0 };
-
-  function bindInvert(id, k){
-    $(id).addEventListener('click', () => {
-      invert[k] *= -1;
-      $(id).classList.toggle('active');
-      offset = {x:0,y:0,z:0};   // sign flip invalidates prior calibration
-    });
+  function logEvent(t,now){
+    if(now-S.lastEv[t] < TH.debounce) return;
+    S.lastEv[t]=now; S.ev[t]++;
   }
-  bindInvert('iLat','x'); bindInvert('iLon','y'); bindInvert('iVert','z');
-
-  $('zero').addEventListener('click', () => {
-    offset = { x:lastRaw.x*invert.x, y:lastRaw.y*invert.y, z:lastRaw.z*invert.z };
-    const b = $('zero'), t = b.innerHTML;
-    b.innerHTML = '完了 ✓';
-    setTimeout(() => { b.innerHTML = t; }, 1000);
-  });
-  $('reset').addEventListener('click', () => { peak = {x:0,y:0,z:0}; dirty = true; });
-
-  // ---- state ----
-  let g = {x:0,y:0,z:0}, peak = {x:0,y:0,z:0}, dirty = false;
 
   function onMotion(e){
     const a = e.accelerationIncludingGravity || e.acceleration;
     if(!a) return;
+    const now = performance.now();
     lastRaw = {x:(a.x||0)/9.81, y:(a.y||0)/9.81, z:(a.z||0)/9.81};
-    AXES.forEach(ax => {
-      const k = ax.k;
-      g[k] = lastRaw[k]*invert[k] - offset[k];
+    const prev = {...gs};
+    K.forEach(k=>{
+      g[k]  = lastRaw[k] - offset[k];
+      gs[k] = gs[k] + (g[k]-gs[k])*EMA;
       peak[k] = Math.max(peak[k], Math.abs(g[k]));
-      const d = waves[k].data; d.shift(); d.push(g[k]);
     });
+    if(S){
+      const dt = S.lastT ? (now-S.lastT)/1000 : 0;
+      S.lastT = now;
+      if(dt>0 && dt<0.5){
+        S.active += dt;
+        S.jSumLat += Math.abs((gs.x-prev.x)/dt);
+        S.jSumLon += Math.abs((gs.y-prev.y)/dt);
+        S.jN++;
+        S.vSum += gs.z; S.vSumSq += gs.z*gs.z; S.vN++;
+        if(gs.y >  TH.accel)           logEvent('acc',now);
+        if(gs.y < -TH.brake)           logEvent('brk',now);
+        if(Math.abs(gs.x) > TH.corner) logEvent('cor',now);
+        if(Math.abs(gs.z) > TH.bump)   logEvent('bmp',now);
+        const tot = Math.hypot(g.x,g.y,g.z);
+        if(tot > S.maxTotal) S.maxTotal = tot;
+      }
+    }
     dirty = true;
   }
 
-  function render(){
-    if(dirty){
-      dirty = false;
-      AXES.forEach(ax => {
-        const k = ax.k, v = g[k], half = clamp(Math.abs(v)/MAX_G,0,1)*50;
-        bars[k].val.textContent = (v>=0?'+':'') + v.toFixed(2);
-        bars[k].fill.style.width = half + '%';
-        bars[k].fill.style.left  = (v>=0 ? 50 : 50-half) + '%';
-        $('p'+k).textContent = peak[k].toFixed(2);
-        drawWave(k);
-      });
-      const cx = clamp(g.x/MAX_G,-1,1)*50, cy = clamp(-g.y/MAX_G,-1,1)*50;
-      const mag = Math.min(Math.hypot(g.x,g.y)/MAX_G,1);
-      const col = mag>.7 ? '#ff3333' : mag>.4 ? '#ffaa00' : '#00e5ff';
-      const dot = $('dot'), glow = $('glow');
-      dot.style.top = `calc(50% + ${cy}%)`;  dot.style.left = `calc(50% + ${cx}%)`;
-      dot.style.background = col; dot.style.boxShadow = `0 0 8px 2px ${col}`;
-      glow.style.top = `calc(50% + ${cy*.85}%)`; glow.style.left = `calc(50% + ${cx*.85}%)`;
-      glow.style.background = col;
-      const t = Math.hypot(g.x,g.y,g.z), el = $('total');
-      el.textContent = t.toFixed(2);
-      el.style.color = t>1.5 ? '#ff3333' : t>.8 ? '#ffaa00' : '#fff';
+  /* ---------- scoring ---------- */
+  function computeScore(){
+    if(!S || S.jN < 20) return null;
+    const jLon=S.jSumLon/S.jN, jLat=S.jSumLat/S.jN, jAvg=(jLon+jLat)/2;
+    const mins=Math.max(S.active/60,0.1);
+    const evTotal=S.ev.acc+S.ev.brk+S.ev.cor+S.ev.bmp, evRate=evTotal/mins;
+    const vMean=S.vSum/S.vN, vStd=Math.sqrt(Math.max(S.vSumSq/S.vN-vMean*vMean,0));
+    const smooth =100-clamp((jAvg-TH.jerkGood)/(TH.jerkBad-TH.jerkGood),0,1)*100;
+    const stable =100-clamp(evRate/TH.evRateBad,0,1)*100;
+    const comfort=100-clamp(vStd/TH.vertBad,0,1)*100;
+    return {smooth,stable,comfort,total:smooth*.45+stable*.35+comfort*.20,jLon,jLat,evRate};
+  }
+  const gradeOf = v => v>=90?['S','#00ff88'] : v>=80?['A','#00e5ff']
+                     : v>=70?['B','#ffaa00'] : v>=55?['C','#ff8800'] : ['D','#ff3333'];
+  const fmtTime = s => String(Math.floor(s/60)).padStart(2,'0')+':'+String(Math.floor(s%60)).padStart(2,'0');
+
+  function renderScore(){
+    if(!S) return;
+    $('evAcc').textContent=S.ev.acc; $('evBrk').textContent=S.ev.brk;
+    $('evCor').textContent=S.ev.cor; $('evBmp').textContent=S.ev.bmp;
+    $('stTime').textContent=fmtTime(S.active);
+    $('stMax').textContent=S.maxTotal.toFixed(2)+' G';
+    const r=computeScore();
+    if(!r){
+      $('scoreNum').innerHTML='--<span> / 100</span>';
+      $('grade').textContent='–'; $('grade').style.color='#333';
+      ['1','2','3'].forEach(i=>{ $('s'+i).textContent='--'; $('b'+i).style.width='0%'; });
+      $('stJl').textContent='-- G/s'; $('stJx').textContent='-- G/s'; $('stEv').textContent='-- 回/分';
+      return;
     }
+    const [gr,gc]=gradeOf(r.total);
+    $('grade').textContent=gr; $('grade').style.color=gc;
+    $('scoreNum').innerHTML=Math.round(r.total)+'<span> / 100</span>';
+    const set=(i,v)=>{ $('s'+i).textContent=Math.round(v); $('b'+i).style.width=clamp(v,0,100)+'%'; };
+    set('1',r.smooth); set('2',r.stable); set('3',r.comfort);
+    $('stJl').textContent=r.jLon.toFixed(3)+' G/s';
+    $('stJx').textContent=r.jLat.toFixed(3)+' G/s';
+    $('stEv').textContent=r.evRate.toFixed(1)+' 回/分';
+  }
+
+  /* ---------- render ---------- */
+  let tab='mon', tick=0;
+  function render(){
+    if(dirty && tab==='mon'){
+      dirty=false;
+      $('vx').textContent=(g.x>=0?'+':'')+g.x.toFixed(2);
+      $('vy').textContent=(g.y>=0?'+':'')+g.y.toFixed(2);
+      $('vz').textContent=(g.z>=0?'+':'')+g.z.toFixed(2);
+      $('px').textContent=peak.x.toFixed(2);
+      $('py').textContent=peak.y.toFixed(2);
+      $('pz').textContent=peak.z.toFixed(2);
+      const cx=clamp(g.x/MAX_G,-1,1)*50, cy=clamp(-g.y/MAX_G,-1,1)*50;
+      const mag=Math.min(Math.hypot(g.x,g.y)/MAX_G,1);
+      const col=mag>.7?'#ff3333':mag>.4?'#ffaa00':'#00e5ff';
+      const dot=$('dot'), glow=$('glow');
+      dot.style.top=`calc(50% + ${cy}%)`;  dot.style.left=`calc(50% + ${cx}%)`;
+      dot.style.background=col; dot.style.boxShadow=`0 0 14px 3px ${col}`;
+      glow.style.top=`calc(50% + ${cy*.9}%)`; glow.style.left=`calc(50% + ${cx*.9}%)`;
+      glow.style.background=col;
+      const t=Math.hypot(g.x,g.y,g.z), el=$('total');
+      el.textContent=t.toFixed(2);
+      el.style.color=t>1.0?'#ff3333':t>.6?'#ffaa00':'#fff';
+    }
+    if(tab==='score' && ++tick%15===0) renderScore();
     requestAnimationFrame(render);
   }
 
-  // ---- controls ----
-  const needsPermission = typeof DeviceMotionEvent !== 'undefined'
-    && typeof DeviceMotionEvent.requestPermission === 'function';
+  /* ---------- tabs ---------- */
+  function setTab(t){
+    tab=t;
+    $('tabMon').classList.toggle('active',t==='mon');
+    $('tabScore').classList.toggle('active',t==='score');
+    $('viewMon').classList.toggle('hide',t!=='mon');
+    $('viewScore').classList.toggle('hide',t!=='score');
+    $('ctrlMon').classList.toggle('hide',t!=='mon');
+    $('ctrlScore').classList.toggle('hide',t!=='score');
+    if(t==='mon'){ sizePlot(); dirty=true; } else renderScore();
+  }
+  $('tabMon').addEventListener('click',()=>setTab('mon'));
+  $('tabScore').addEventListener('click',()=>setTab('score'));
 
+  /* ---------- buttons ---------- */
+  $('zero').addEventListener('click',()=>{
+    offset={...lastRaw};
+    const b=$('zero'), t=b.innerHTML; b.innerHTML='完了 ✓';
+    setTimeout(()=>{b.innerHTML=t;},1000); dirty=true;
+  });
+  $('reset').addEventListener('click',()=>{ peak={x:0,y:0,z:0}; dirty=true; });
+  $('newSession').addEventListener('click',newSession);
+
+  /* ---------- sensor ---------- */
+  const needsPerm = typeof DeviceMotionEvent!=='undefined'
+    && typeof DeviceMotionEvent.requestPermission==='function';
+  let running=false;
+
+  function setPowerBtn(label, cls){
+    ['power','power2'].forEach(id=>{
+      const b=$(id);
+      b.innerHTML=label;
+      b.className='big '+cls;
+    });
+  }
   function start(){
-    window.addEventListener('devicemotion', onMotion);
-    $('rec').classList.add('on');
-    $('start').classList.add('hide');
-    $('enable').classList.add('hide');
-    $('stop').classList.remove('hide');
+    if(!S) newSession(); else S.lastT=0;   // resume without counting paused time
+    window.addEventListener('devicemotion',onMotion);
+    running=true; $('rec').classList.add('on');
+    setPowerBtn('STOP','stopping');
   }
   function stop(){
-    window.removeEventListener('devicemotion', onMotion);
-    $('rec').classList.remove('on');
-    $('stop').classList.add('hide');
-    $('start').classList.remove('hide');
+    window.removeEventListener('devicemotion',onMotion);
+    running=false; $('rec').classList.remove('on');
+    setPowerBtn('START','go');
   }
-
-  $('enable').addEventListener('click', async () => {
-    if(needsPermission){
+  async function power(){
+    if(running){ stop(); return; }
+    if(needsPerm && Object.keys(lastRaw).every(k=>lastRaw[k]===0)){
       try{
-        const res = await DeviceMotionEvent.requestPermission();
-        if(res === 'granted') start();
-        else { $('enable').classList.add('hide'); $('err').classList.remove('hide'); }
+        const res=await DeviceMotionEvent.requestPermission();
+        if(res==='granted') start();
+        else { ['ctrlMon','ctrlScore'].forEach(i=>$(i).classList.add('hide')); $('err').classList.remove('hide'); }
       }catch(_){
-        $('enable').classList.add('hide'); $('err').classList.remove('hide');
+        ['ctrlMon','ctrlScore'].forEach(i=>$(i).classList.add('hide')); $('err').classList.remove('hide');
       }
     } else start();
-  });
-  $('start').addEventListener('click', start);
-  $('stop').addEventListener('click', stop);
-
-  if(!needsPermission){
-    $('enable').textContent = 'START';
-    if(typeof DeviceMotionEvent !== 'undefined') start();
   }
-
+  $('power').addEventListener('click',power);
+  $('power2').addEventListener('click',power);
+  if(!needsPerm){
+    setPowerBtn('START','go');
+    if(typeof DeviceMotionEvent!=='undefined') start();
+  }
   if('wakeLock' in navigator){
-    document.addEventListener('click', () => {
-      navigator.wakeLock.request('screen').catch(()=>{});
-    }, {once:true});
+    document.addEventListener('click',()=>{ navigator.wakeLock.request('screen').catch(()=>{}); },{once:true});
   }
 
-  sizeCanvases();
+  newSession();
+  sizePlot();
   requestAnimationFrame(render);
 })();
 </script>
