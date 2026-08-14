@@ -176,6 +176,7 @@
       <div class="st-row"><span>平均ジャーク 横</span><b id="stJx">-- G/s</b></div>
       <div class="st-row"><span>イベント頻度</span><b id="stEv">-- 回/分</b></div>
       <div class="st-row"><span>最大合成G</span><b id="stMax">-- G</b></div>
+      <div class="st-row"><span>推定勾配（近似）</span><b id="stGrade">--%</b></div>
     </div>
   </div>
 
@@ -226,6 +227,19 @@
   let offset={x:0,y:0,z:0}, lastRaw={x:0,y:0,z:0}, dirty=false;
   const EMA = 0.25;
 
+  /* 坂道補正: GPSの速度変化から実際の加減速(真値)を求め、加速度センサーの
+     読み値との差分を勾配バイアスとして推定する。GPSは車の実速度のみを見て
+     いるため重力の影響を受けない。GPS権限が得られない場合は、従来の
+     長時定数フィルターにフォールバックする。 */
+  const GRADE_TAU = 8.0;      // 秒 (フォールバック用)
+  const MIN_SPEED_GPS = 2.0;  // m/s (≈7.2km/h) 未満はGPS速度が不正確なため使わない
+  let gradeBias = 0;
+  let usingGPS = false;
+  let gpsStatus = 'unknown';  // unknown | active | denied | unavailable
+  let gpsWatchId = null;
+  let gpsLastSpeed = null, gpsLastT = null;
+  let accSumY = 0, accCountY = 0;   // 前後Gの平均値をGPS更新間隔ごとに蓄積
+
   /* ---------- session ---------- */
   let S=null;
   function newSession(){
@@ -238,6 +252,43 @@
   function logEvent(t,now){
     if(now-S.lastEv[t] < TH.debounce) return;
     S.lastEv[t]=now; S.ev[t]++;
+  }
+
+  /* ---------- GPS-based grade calibration ---------- */
+  function handlePosition(pos){
+    gpsStatus = 'active';
+    const speed = pos.coords.speed;      // m/s or null
+    const t = pos.timestamp;
+    if(speed == null){
+      gpsLastSpeed = null; gpsLastT = null;
+      accSumY = 0; accCountY = 0;
+      return;
+    }
+    if(gpsLastSpeed != null && gpsLastT != null){
+      const dtG = (t - gpsLastT) / 1000;
+      if(dtG > 0.3 && dtG < 6 && speed >= MIN_SPEED_GPS && gpsLastSpeed >= MIN_SPEED_GPS){
+        const aGps = ((speed - gpsLastSpeed) / dtG) / 9.81;      // 真の前後G
+        const aSensorAvg = accCountY > 0 ? accSumY/accCountY : gs.y;
+        const newBias = aSensorAvg - aGps;
+        gradeBias = usingGPS ? gradeBias*0.3 + newBias*0.7 : newBias; // 初回は即反映
+        usingGPS = true;
+      }
+    }
+    gpsLastSpeed = speed; gpsLastT = t;
+    accSumY = 0; accCountY = 0;
+  }
+  function handlePositionError(err){
+    usingGPS = false;
+    gpsStatus = (err && err.code === err.PERMISSION_DENIED) ? 'denied' : 'unavailable';
+  }
+  function startGPS(){
+    if(!('geolocation' in navigator)){ gpsStatus='unavailable'; return; }
+    gpsWatchId = navigator.geolocation.watchPosition(handlePosition, handlePositionError,
+      { enableHighAccuracy:true, maximumAge:2000, timeout:5000 });
+  }
+  function stopGPS(){
+    if(gpsWatchId != null){ navigator.geolocation.clearWatch(gpsWatchId); gpsWatchId=null; }
+    usingGPS = false; gpsLastSpeed=null; gpsLastT=null;
   }
 
   function onMotion(e){
@@ -256,12 +307,23 @@
       S.lastT = now;
       if(dt>0 && dt<0.5){
         S.active += dt;
+
+        accSumY += gs.y; accCountY++;      // GPS較正用に蓄積(常時)
+
+        if(!usingGPS){
+          // フォールバック: GPS未使用時は従来の長時定数フィルターで推定
+          const alphaSlow = 1 - Math.exp(-dt/GRADE_TAU);
+          gradeBias += (gs.y - gradeBias) * alphaSlow;
+        }
+        const yComp = gs.y - gradeBias;           // 勾配補正後の前後G
+        const yCompPrev = prev.y - gradeBias;
+
         S.jSumLat += Math.abs((gs.x-prev.x)/dt);
-        S.jSumLon += Math.abs((gs.y-prev.y)/dt);
+        S.jSumLon += Math.abs((yComp-yCompPrev)/dt);
         S.jN++;
         S.vSum += gs.z; S.vSumSq += gs.z*gs.z; S.vN++;
-        if(gs.y >  TH.accel)           logEvent('acc',now);
-        if(gs.y < -TH.brake)           logEvent('brk',now);
+        if(yComp >  TH.accel)          logEvent('acc',now);
+        if(yComp < -TH.brake)          logEvent('brk',now);
         if(Math.abs(gs.x) > TH.corner) logEvent('cor',now);
         if(Math.abs(gs.z) > TH.bump)   logEvent('bmp',now);
         const tot = Math.hypot(g.x,g.y,g.z);
@@ -293,6 +355,10 @@
     $('evCor').textContent=S.ev.cor; $('evBmp').textContent=S.ev.bmp;
     $('stTime').textContent=fmtTime(S.active);
     $('stMax').textContent=S.maxTotal.toFixed(2)+' G';
+    const gradePct = gradeBias*100;
+    const dir = Math.abs(gradePct)<0.5 ? '' : (gradePct>0 ? '(上り)' : '(下り)');
+    const src = usingGPS ? 'GPS' : (gpsStatus==='denied' ? 'フィルター推定・GPS拒否' : gpsStatus==='unavailable' ? 'フィルター推定・GPS不可' : 'フィルター推定');
+    $('stGrade').textContent=(gradePct>=0?'+':'')+gradePct.toFixed(1)+'% '+dir+' · '+src;
     const r=computeScore();
     if(!r){
       $('scoreNum').innerHTML='--<span> / 100</span>';
@@ -376,11 +442,13 @@
   function start(){
     if(!S) newSession(); else S.lastT=0;   // resume without counting paused time
     window.addEventListener('devicemotion',onMotion);
+    startGPS();
     running=true; $('rec').classList.add('on');
     setPowerBtn('STOP','stopping');
   }
   function stop(){
     window.removeEventListener('devicemotion',onMotion);
+    stopGPS();
     running=false; $('rec').classList.remove('on');
     setPowerBtn('START','go');
   }
