@@ -177,6 +177,7 @@
       <div class="st-row"><span>イベント頻度</span><b id="stEv">-- 回/分</b></div>
       <div class="st-row"><span>最大合成G</span><b id="stMax">-- G</b></div>
       <div class="st-row"><span>推定勾配（近似）</span><b id="stGrade">--%</b></div>
+      <div class="st-row"><span>検出コーナー数</span><b id="stCorners">0回</b></div>
     </div>
   </div>
 
@@ -240,13 +241,25 @@
   let gpsLastSpeed = null, gpsLastT = null;
   let accSumY = 0, accCountY = 0;   // 前後Gの平均値をGPS更新間隔ごとに蓄積
 
+  /* カーブ半径連動の横G評価: GPSの連続する2区間の方位変化から曲率半径を
+     算出し、v²/r で「その速度・その曲率なら本来どれだけの横Gが生じるか」
+     を求める。道路データ(OSM等)は使わず、自車の走行軌跡のみから推定する。
+     GPSは約1Hzのため、緩いカーブや高速走行での半径推定誤差は大きくなり
+     やすい点に留意。実測しながらの閾値調整が前提。 */
+  const CORNER_OMEGA_MIN = 0.035;  // rad/s (≈2°/s) コーナー突入とみなす角速度
+  const CORNER_EXIT_HOLD = 1200;   // ms これ未満に落ちてからコーナー終了とみなす
+  const MIN_FIX_DIST = 3;          // m これ未満のGPS点間隔は方位計算に使わない(ノイズ対策)
+  let gpsHist = [];   // 直近3点の {lat,lon,t,speed}
+  let corner = null;  // 進行中のコーナー状態
+
   /* ---------- session ---------- */
   let S=null;
   function newSession(){
     S={t0:performance.now(),active:0,lastT:0,
        jSumLon:0,jSumLat:0,jN:0,vSum:0,vSumSq:0,vN:0,
        ev:{acc:0,brk:0,cor:0,bmp:0}, lastEv:{acc:0,brk:0,cor:0,bmp:0},
-       maxTotal:0};
+       maxTotal:0, cornerCount:0, cornerGSum:0};
+    corner = null; gpsHist = [];
     renderScore();
   }
   function logEvent(t,now){
@@ -254,7 +267,29 @@
     S.lastEv[t]=now; S.ev[t]++;
   }
 
-  /* ---------- GPS-based grade calibration ---------- */
+  /* ---------- GPS-based grade calibration + corner detection ---------- */
+  function toRad(d){ return d*Math.PI/180; }
+  function bearingRad(a,b){
+    const φ1=toRad(a.lat), φ2=toRad(b.lat), Δλ=toRad(b.lon-a.lon);
+    const y=Math.sin(Δλ)*Math.cos(φ2);
+    const x=Math.cos(φ1)*Math.sin(φ2)-Math.sin(φ1)*Math.cos(φ2)*Math.cos(Δλ);
+    return Math.atan2(y,x);
+  }
+  function haversineM(a,b){
+    const R=6371000, φ1=toRad(a.lat), φ2=toRad(b.lat);
+    const dφ=toRad(b.lat-a.lat), dλ=toRad(b.lon-a.lon);
+    const h=Math.sin(dφ/2)**2 + Math.cos(φ1)*Math.cos(φ2)*Math.sin(dλ/2)**2;
+    return 2*R*Math.asin(Math.sqrt(h));
+  }
+  function angleDiffRad(a,b){
+    let d=a-b; while(d>Math.PI)d-=2*Math.PI; while(d<-Math.PI)d+=2*Math.PI; return d;
+  }
+  function closeCorner(t){
+    if(!corner) return;
+    if(S){ S.cornerCount++; S.cornerGSum += corner.peakAccelG; }
+    corner = null;
+  }
+
   function handlePosition(pos){
     gpsStatus = 'active';
     const speed = pos.coords.speed;      // m/s or null
@@ -276,6 +311,29 @@
     }
     gpsLastSpeed = speed; gpsLastT = t;
     accSumY = 0; accCountY = 0;
+
+    // ---- 曲率半径推定・コーナー検出 ----
+    const fix = {lat:pos.coords.latitude, lon:pos.coords.longitude, t, speed};
+    gpsHist.push(fix); if(gpsHist.length>3) gpsHist.shift();
+    if(gpsHist.length===3 && speed>=MIN_SPEED_GPS){
+      const [p0,p1,p2]=gpsHist;
+      const d01=haversineM(p0,p1), d12=haversineM(p1,p2);
+      if(d01>=MIN_FIX_DIST && d12>=MIN_FIX_DIST){
+        const dtTotal=(p2.t-p0.t)/1000;
+        if(dtTotal>0.3 && dtTotal<8){
+          const omega = angleDiffRad(bearingRad(p1,p2),bearingRad(p0,p1))/dtTotal; // rad/s
+          if(Math.abs(omega) > CORNER_OMEGA_MIN){
+            const r = Math.abs(speed/omega);
+            const kinematicG = (speed*speed/r)/9.81;
+            if(!corner) corner = {entrySpeed:speed, peakAccelG:0, peakKinematicG:0, minRadius:r, lastAboveT:t};
+            corner.lastAboveT = t;
+            corner.minRadius = Math.min(corner.minRadius, r);
+            corner.peakKinematicG = Math.max(corner.peakKinematicG, kinematicG);
+          }
+        }
+      }
+    }
+    if(corner && (t - corner.lastAboveT) > CORNER_EXIT_HOLD) closeCorner(t);
   }
   function handlePositionError(err){
     usingGPS = false;
@@ -302,6 +360,7 @@
       gs[k] = gs[k] + (g[k]-gs[k])*EMA;
       peak[k] = Math.max(peak[k], Math.abs(g[k]));
     });
+    if(corner) corner.peakAccelG = Math.max(corner.peakAccelG, Math.abs(gs.x));
     if(S){
       const dt = S.lastT ? (now-S.lastT)/1000 : 0;
       S.lastT = now;
@@ -359,6 +418,8 @@
     const dir = Math.abs(gradePct)<0.5 ? '' : (gradePct>0 ? '(上り)' : '(下り)');
     const src = usingGPS ? 'GPS' : (gpsStatus==='denied' ? 'フィルター推定・GPS拒否' : gpsStatus==='unavailable' ? 'フィルター推定・GPS不可' : 'フィルター推定');
     $('stGrade').textContent=(gradePct>=0?'+':'')+gradePct.toFixed(1)+'% '+dir+' · '+src;
+    const cAvg = S.cornerCount>0 ? S.cornerGSum/S.cornerCount : null;
+    $('stCorners').textContent = S.cornerCount+'回'+(cAvg!=null?' (平均 '+cAvg.toFixed(2)+'G)':'');
     const r=computeScore();
     if(!r){
       $('scoreNum').innerHTML='--<span> / 100</span>';
@@ -449,6 +510,7 @@
   function stop(){
     window.removeEventListener('devicemotion',onMotion);
     stopGPS();
+    corner = null; gpsHist = [];
     running=false; $('rec').classList.remove('on');
     setPowerBtn('START','go');
   }
