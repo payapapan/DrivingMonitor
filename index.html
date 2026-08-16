@@ -50,17 +50,19 @@
   .r25{width:25%;height:25%;top:37.5%;left:37.5%}
   .cross-h{position:absolute;top:50%;left:0;right:0;height:1px;background:#1c1c1c}
   .cross-v{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#1c1c1c}
-  .axis{position:absolute;font-size:11px;color:#3a3a3a;letter-spacing:1px}
+  .axis{position:absolute;font-size:11px;color:#3a3a3a;letter-spacing:1px;
+    cursor:pointer;padding:4px;user-select:none}
+  .axis:active{color:#e9edee}
+  .axis.flash{color:#00e5ff;transition:color .15s}
   #dot{position:absolute;width:15px;height:15px;border-radius:50%;background:#e9edee;
     box-shadow:0 0 10px 2px rgba(233,237,238,.55);
     transform:translate(-50%,-50%);top:50%;left:50%;z-index:10;
     transition:top .05s,left .05s}
   #glow{position:absolute;width:30px;height:30px;border-radius:50%;background:#e9edee;
-    opacity:.14;filter:blur(9px);
+    opacity:.14;filter:blur(9px);z-index:8;
     transform:translate(-50%,-50%);top:50%;left:50%;transition:top .08s,left .08s}
   #trail{position:absolute;inset:0;pointer-events:none;z-index:6}
-  .tdot{position:absolute;width:8px;height:8px;border-radius:50%;background:#d5dbdb;
-    box-shadow:0 0 3px rgba(213,219,219,.4);
+  .tdot{position:absolute;width:6px;height:6px;border-radius:50%;background:#c9d0d0;
     transform:translate(-50%,-50%);opacity:0}
 
   /* ---------- axis readout strip ---------- */
@@ -148,10 +150,15 @@
       <div id="plot">
         <div class="ring r50"></div><div class="ring r25"></div>
         <div class="cross-h"></div><div class="cross-v"></div>
-        <span class="axis" style="top:6px;left:50%;transform:translateX(-50%)">加速</span>
-        <span class="axis" style="bottom:6px;left:50%;transform:translateX(-50%)">制動</span>
-        <span class="axis" style="left:6px;top:50%;transform:translateY(-50%)">左</span>
-        <span class="axis" style="right:6px;top:50%;transform:translateY(-50%)">右</span>
+        <span class="axis" id="lblAccel" style="top:6px;left:50%;transform:translateX(-50%)">加速</span>
+        <span class="axis" id="lblBrake" style="bottom:6px;left:50%;transform:translateX(-50%)">制動</span>
+        <span class="axis" id="lblLeft" style="left:6px;top:50%;transform:translateY(-50%)">左</span>
+        <span class="axis" id="lblRight" style="right:6px;top:50%;transform:translateY(-50%)">右</span>
+        <svg id="ringSvg" viewBox="0 0 100 100" preserveAspectRatio="none"
+             style="position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:4">
+          <path id="ringPath" fill="none" stroke="#c9d0d0" stroke-width="1.1"
+                stroke-linejoin="round" stroke-linecap="round" opacity="0.8"/>
+        </svg>
         <div id="glow"></div>
         <div id="trail"></div>
         <div id="dot"></div>
@@ -231,7 +238,7 @@
   const K = ['x','y','z'];
   // 実機で前後G(Y)の符号が加速/減速と逆だったため、生値の時点で反転しておく。
   // ここを直せば円の表示・イベント判定・GPS勾配補正すべてに一貫して効く。
-  const AXIS_SIGN = {x:-1, y:-1, z:1};
+  const AXIS_SIGN = {x:1, y:-1, z:1};
 
   /* ---------- 街乗り診断のチューニング値 ----------
      実走して調整する前提の初期値。業界標準値は未確認。 */
@@ -472,38 +479,69 @@
     $('stEv').textContent=r.evRate.toFixed(1)+' 回/分';
   }
 
-  /* GRヤリスのGモニター(取扱説明書の図)を参考にした「最大Gの軌跡」表示。
-     時間で消える履歴ではなく、方向ごとに到達した最大Gを記録し続け、走行
-     するほど円状に埋まっていく envelope として実装する。角度を24分割し、
-     各セクターでその方向の最大到達点だけを保持・更新する。 */
+  /* GRヤリスのGモニター(取扱説明書の図)を参考にした二層表示。
+     ① 最大Gの軌跡: 方向ごとに到達した最大Gを記録し続け、線でつないだ
+        円状の輪郭として描く(時間で消えない・PEAK RESET等で明示的にクリア)。
+     ② 直近履歴: 直近数秒間のGの推移を、新しいほど濃く古いほど薄れて
+        消えていく点群として重ねて描く。 */
   const RING_SECTORS = 24;
   let ring = new Array(RING_SECTORS).fill(null);   // {cx,cy,mag} | null
-  let trailEls = [], lastCx = 0, lastCy = 0;
-  function ensureTrailPool(){
-    const c = $('trail');
-    while(trailEls.length < RING_SECTORS){
-      const d = document.createElement('div');
-      d.className = 'tdot';
-      c.appendChild(d);
-      trailEls.push(d);
-    }
-  }
+  let lastCx = 0, lastCy = 0;
+
   function updateRing(cx,cy){
     const mag = Math.hypot(cx,cy);
-    if(mag < 2) return;   // ほぼ中心(≈0G)はどの方向か定まらないため無視
+    if(mag < 2) return false;   // ほぼ中心(≈0G)はどの方向か定まらないため無視
     let a = Math.atan2(cy,cx); if(a<0) a += 2*Math.PI;
     const idx = Math.floor(a/(2*Math.PI/RING_SECTORS)) % RING_SECTORS;
     const cur = ring[idx];
-    if(!cur || mag > cur.mag) ring[idx] = {cx,cy,mag};
+    if(!cur || mag > cur.mag){ ring[idx] = {cx,cy,mag}; return true; }
+    return false;
   }
-  function renderRing(){
-    for(let i=0;i<trailEls.length;i++){
-      const p = ring[i], el = trailEls[i];
+  function renderRingPath(){
+    let d='', first=null, prev=null, anyNull=false;
+    for(let i=0;i<RING_SECTORS;i++){
+      const p = ring[i];
+      if(!p){ anyNull=true; prev=null; continue; }
+      const x=(50+p.cx).toFixed(2), y=(50+p.cy).toFixed(2);
+      if(prev===null){ d+=`M${x} ${y} `; if(first===null) first=`${x} ${y}`; }
+      else d+=`L${x} ${y} `;
+      prev=i;
+    }
+    if(!anyNull && first) d+=`L${first} Z`;
+    $('ringPath').setAttribute('d', d);
+  }
+
+  const HIST_FADE_MS = 3000, HIST_MIN_GAP_MS = 120, HIST_MAX = 26;
+  let history = [], lastHistPush = 0, histEls = [];
+  function ensureHistPool(){
+    const c = $('trail');
+    while(histEls.length < HIST_MAX){
+      const el = document.createElement('div');
+      el.className = 'tdot';
+      c.appendChild(el);
+      histEls.push(el);
+    }
+  }
+  function updateHistory(now){
+    if(now - lastHistPush >= HIST_MIN_GAP_MS){
+      history.push({cx:lastCx, cy:lastCy, t:now});
+      lastHistPush = now;
+    }
+    while(history.length && now - history[0].t > HIST_FADE_MS) history.shift();
+    if(history.length > HIST_MAX) history.splice(0, history.length - HIST_MAX);
+    for(let i=0;i<histEls.length;i++){
+      const p = history[i], el = histEls[i];
       if(!p){ el.style.opacity=0; continue; }
-      el.style.opacity = '0.8';
+      const life = clamp(1 - (now-p.t)/HIST_FADE_MS, 0, 1);
+      el.style.opacity = (life*0.7).toFixed(2);
       el.style.top  = `calc(50% + ${p.cy}%)`;
       el.style.left = `calc(50% + ${p.cx}%)`;
     }
+  }
+  function clearRingAndHistory(){
+    ring = new Array(RING_SECTORS).fill(null);
+    history = [];
+    renderRingPath();
   }
 
   /* ---------- render ---------- */
@@ -518,12 +556,12 @@
       $('py').textContent=peak.y.toFixed(2);
       $('pz').textContent=peak.z.toFixed(2);
       lastCx=clamp(g.x/MAX_G,-1,1)*50; lastCy=clamp(-g.y/MAX_G,-1,1)*50;
-      updateRing(lastCx,lastCy);
+      if(updateRing(lastCx,lastCy)) renderRingPath();
       const dot=$('dot'), glow=$('glow');
       dot.style.top=`calc(50% + ${lastCy}%)`;  dot.style.left=`calc(50% + ${lastCx}%)`;
       glow.style.top=`calc(50% + ${lastCy*.9}%)`; glow.style.left=`calc(50% + ${lastCx*.9}%)`;
     }
-    if(tab==='mon') renderRing();
+    if(tab==='mon') updateHistory(performance.now());
     if(tab==='score' && ++tick%15===0) renderScore();
     requestAnimationFrame(render);
   }
@@ -545,12 +583,23 @@
   /* ---------- buttons ---------- */
   $('zero').addEventListener('click',()=>{
     offset={...lastRaw};
-    ring = new Array(RING_SECTORS).fill(null);
+    clearRingAndHistory();
     const b=$('zero'), t=b.innerHTML; b.innerHTML='完了 ✓';
     setTimeout(()=>{b.innerHTML=t;},1000); dirty=true;
   });
-  $('reset').addEventListener('click',()=>{ peak={x:0,y:0,z:0}; ring=new Array(RING_SECTORS).fill(null); dirty=true; });
+  $('reset').addEventListener('click',()=>{ peak={x:0,y:0,z:0}; clearRingAndHistory(); dirty=true; });
   $('newSession').addEventListener('click',newSession);
+
+  /* 円のラベル(加速/制動/左/右)をタップすると、その軸の符号をその場で
+     反転できる。実機ごとに前後G・横Gの符号が想定と逆になることがあり、
+     取り付け直後にその場で検証・修正できるようにするための機能。 */
+  function flash(...ids){ ids.forEach(id=>{ const el=$(id); el.classList.add('flash'); setTimeout(()=>el.classList.remove('flash'),300); }); }
+  function invertY(){ AXIS_SIGN.y*=-1; clearRingAndHistory(); dirty=true; flash('lblAccel','lblBrake'); }
+  function invertX(){ AXIS_SIGN.x*=-1; clearRingAndHistory(); dirty=true; flash('lblLeft','lblRight'); }
+  $('lblAccel').addEventListener('click', invertY);
+  $('lblBrake').addEventListener('click', invertY);
+  $('lblLeft').addEventListener('click', invertX);
+  $('lblRight').addEventListener('click', invertX);
 
   /* ---------- sensor ---------- */
   const needsPerm = typeof DeviceMotionEvent!=='undefined'
@@ -602,7 +651,7 @@
 
   newSession();
   sizePlot();
-  ensureTrailPool();
+  ensureHistPool();
   requestAnimationFrame(render);
 })();
 </script>
