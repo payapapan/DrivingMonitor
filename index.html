@@ -61,12 +61,6 @@
   #trail{position:absolute;inset:0;pointer-events:none;z-index:6}
   .tdot{position:absolute;width:6px;height:6px;border-radius:50%;background:#c9d0d0;
     transform:translate(-50%,-50%);opacity:0}
-  /* total G sits in the middle of the circle, dimmed so the dot stays readable */
-  #totalWrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
-    text-align:center;pointer-events:none;z-index:5}
-  #total{font-size:56px;font-weight:900;letter-spacing:-3px;line-height:.9;
-    opacity:.55;transition:color .1s}
-  #totalWrap .lbl{opacity:.5;margin-top:2px}
 
   /* ---------- axis readout strip ---------- */
   .strip{flex:0 0 auto;display:flex;gap:6px}
@@ -158,10 +152,6 @@
         <span class="axis" style="left:6px;top:50%;transform:translateY(-50%)">左</span>
         <span class="axis" style="right:6px;top:50%;transform:translateY(-50%)">右</span>
         <div id="glow"></div>
-        <div id="totalWrap">
-          <div id="total">0.00</div>
-          <div class="lbl">Total G</div>
-        </div>
         <div id="trail"></div>
         <div id="dot"></div>
       </div>
@@ -234,7 +224,7 @@
 
 <script>
 (() => {
-  const MAX_G = 1.2;   // full-scale of the plot; street driving rarely exceeds this
+  const MAX_G = 0.4;   // 円チャートのフルスケール
   const clamp = (v,a,b) => Math.min(Math.max(v,a),b);
   const $ = id => document.getElementById(id);
   const K = ['x','y','z'];
@@ -525,9 +515,6 @@
       const dot=$('dot'), glow=$('glow');
       dot.style.top=`calc(50% + ${lastCy}%)`;  dot.style.left=`calc(50% + ${lastCx}%)`;
       glow.style.top=`calc(50% + ${lastCy*.9}%)`; glow.style.left=`calc(50% + ${lastCx*.9}%)`;
-      const t=Math.hypot(g.x,g.y,g.z), el=$('total');
-      el.textContent=t.toFixed(2);
-      el.style.color=t>1.0?'#ff3333':t>.6?'#ffaa00':'#fff';
     }
     if(tab==='mon') updateTrail(now);
     if(tab==='score' && ++tick%15===0) renderScore();
