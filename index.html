@@ -555,7 +555,12 @@
       $('px').textContent=peak.x.toFixed(2);
       $('py').textContent=peak.y.toFixed(2);
       $('pz').textContent=peak.z.toFixed(2);
-      lastCx=clamp(g.x/MAX_G,-1,1)*50; lastCy=clamp(-g.y/MAX_G,-1,1)*50;
+      // 円は正円なので、軸ごとの矩形クランプではなく半径でクランプする。
+      // (矩形だと斜め方向は円の外=半径の√2倍まで出てしまう)
+      let px = (g.x/MAX_G)*50, py = (-g.y/MAX_G)*50;
+      const rad = Math.hypot(px,py), RMAX = 47;   // ドット半径分の余白を確保
+      if(rad > RMAX){ px *= RMAX/rad; py *= RMAX/rad; }
+      lastCx = px; lastCy = py;
       if(updateRing(lastCx,lastCy)) renderRingPath();
       const dot=$('dot'), glow=$('glow');
       dot.style.top=`calc(50% + ${lastCy}%)`;  dot.style.left=`calc(50% + ${lastCx}%)`;
