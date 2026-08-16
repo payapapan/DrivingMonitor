@@ -51,11 +51,16 @@
   .cross-h{position:absolute;top:50%;left:0;right:0;height:1px;background:#1c1c1c}
   .cross-v{position:absolute;left:50%;top:0;bottom:0;width:1px;background:#1c1c1c}
   .axis{position:absolute;font-size:11px;color:#3a3a3a;letter-spacing:1px}
-  #dot{position:absolute;width:18px;height:18px;border-radius:50%;
+  #dot{position:absolute;width:15px;height:15px;border-radius:50%;background:#e9edee;
+    box-shadow:0 0 10px 2px rgba(233,237,238,.55);
     transform:translate(-50%,-50%);top:50%;left:50%;z-index:10;
-    transition:top .05s,left .05s,background .1s,box-shadow .1s}
-  #glow{position:absolute;width:34px;height:34px;border-radius:50%;opacity:.18;filter:blur(10px);
+    transition:top .05s,left .05s}
+  #glow{position:absolute;width:30px;height:30px;border-radius:50%;background:#e9edee;
+    opacity:.14;filter:blur(9px);
     transform:translate(-50%,-50%);top:50%;left:50%;transition:top .08s,left .08s}
+  #trail{position:absolute;inset:0;pointer-events:none;z-index:6}
+  .tdot{position:absolute;width:6px;height:6px;border-radius:50%;background:#c9d0d0;
+    transform:translate(-50%,-50%);opacity:0}
   /* total G sits in the middle of the circle, dimmed so the dot stays readable */
   #totalWrap{position:absolute;top:50%;left:50%;transform:translate(-50%,-50%);
     text-align:center;pointer-events:none;z-index:5}
@@ -157,6 +162,7 @@
           <div id="total">0.00</div>
           <div class="lbl">Total G</div>
         </div>
+        <div id="trail"></div>
         <div id="dot"></div>
       </div>
     </div>
@@ -472,9 +478,41 @@
     $('stEv').textContent=r.evRate.toFixed(1)+' 回/分';
   }
 
+  /* GRヤリスのGモニター(取扱説明書の図)を参考にした軌跡表示。実車の
+     アルゴリズムは検証できないため、直近5秒程度のGの推移を新しいほど
+     濃く・古いほど薄く消える点群として描く、という解釈で実装している。 */
+  const TRAIL_FADE_MS = 5000, TRAIL_MIN_GAP_MS = 140, TRAIL_MAX = 40;
+  let trail = [], lastTrailPush = 0, trailEls = [], lastCx = 0, lastCy = 0;
+  function ensureTrailPool(){
+    const c = $('trail');
+    while(trailEls.length < TRAIL_MAX){
+      const d = document.createElement('div');
+      d.className = 'tdot';
+      c.appendChild(d);
+      trailEls.push(d);
+    }
+  }
+  function updateTrail(now){
+    if(now - lastTrailPush >= TRAIL_MIN_GAP_MS){
+      trail.push({cx:lastCx, cy:lastCy, t:now});
+      lastTrailPush = now;
+    }
+    while(trail.length && now - trail[0].t > TRAIL_FADE_MS) trail.shift();
+    if(trail.length > TRAIL_MAX) trail.splice(0, trail.length - TRAIL_MAX);
+    for(let i=0;i<trailEls.length;i++){
+      const p = trail[i], el = trailEls[i];
+      if(!p){ el.style.opacity=0; continue; }
+      const life = clamp(1 - (now-p.t)/TRAIL_FADE_MS, 0, 1);
+      el.style.opacity = (life*0.6).toFixed(2);
+      el.style.top  = `calc(50% + ${p.cy}%)`;
+      el.style.left = `calc(50% + ${p.cx}%)`;
+    }
+  }
+
   /* ---------- render ---------- */
   let tab='mon', tick=0;
   function render(){
+    const now = performance.now();
     if(dirty && tab==='mon'){
       dirty=false;
       $('vx').textContent=(g.x>=0?'+':'')+g.x.toFixed(2);
@@ -483,18 +521,15 @@
       $('px').textContent=peak.x.toFixed(2);
       $('py').textContent=peak.y.toFixed(2);
       $('pz').textContent=peak.z.toFixed(2);
-      const cx=clamp(g.x/MAX_G,-1,1)*50, cy=clamp(-g.y/MAX_G,-1,1)*50;
-      const mag=Math.min(Math.hypot(g.x,g.y)/MAX_G,1);
-      const col=mag>.7?'#ff3333':mag>.4?'#ffaa00':'#00e5ff';
+      lastCx=clamp(g.x/MAX_G,-1,1)*50; lastCy=clamp(-g.y/MAX_G,-1,1)*50;
       const dot=$('dot'), glow=$('glow');
-      dot.style.top=`calc(50% + ${cy}%)`;  dot.style.left=`calc(50% + ${cx}%)`;
-      dot.style.background=col; dot.style.boxShadow=`0 0 14px 3px ${col}`;
-      glow.style.top=`calc(50% + ${cy*.9}%)`; glow.style.left=`calc(50% + ${cx*.9}%)`;
-      glow.style.background=col;
+      dot.style.top=`calc(50% + ${lastCy}%)`;  dot.style.left=`calc(50% + ${lastCx}%)`;
+      glow.style.top=`calc(50% + ${lastCy*.9}%)`; glow.style.left=`calc(50% + ${lastCx*.9}%)`;
       const t=Math.hypot(g.x,g.y,g.z), el=$('total');
       el.textContent=t.toFixed(2);
       el.style.color=t>1.0?'#ff3333':t>.6?'#ffaa00':'#fff';
     }
+    if(tab==='mon') updateTrail(now);
     if(tab==='score' && ++tick%15===0) renderScore();
     requestAnimationFrame(render);
   }
@@ -519,7 +554,7 @@
     const b=$('zero'), t=b.innerHTML; b.innerHTML='完了 ✓';
     setTimeout(()=>{b.innerHTML=t;},1000); dirty=true;
   });
-  $('reset').addEventListener('click',()=>{ peak={x:0,y:0,z:0}; dirty=true; });
+  $('reset').addEventListener('click',()=>{ peak={x:0,y:0,z:0}; trail=[]; dirty=true; });
   $('newSession').addEventListener('click',newSession);
 
   /* ---------- sensor ---------- */
@@ -572,6 +607,7 @@
 
   newSession();
   sizePlot();
+  ensureTrailPool();
   requestAnimationFrame(render);
 })();
 </script>
