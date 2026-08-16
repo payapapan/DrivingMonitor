@@ -59,7 +59,8 @@
     opacity:.14;filter:blur(9px);
     transform:translate(-50%,-50%);top:50%;left:50%;transition:top .08s,left .08s}
   #trail{position:absolute;inset:0;pointer-events:none;z-index:6}
-  .tdot{position:absolute;width:6px;height:6px;border-radius:50%;background:#c9d0d0;
+  .tdot{position:absolute;width:8px;height:8px;border-radius:50%;background:#d5dbdb;
+    box-shadow:0 0 3px rgba(213,219,219,.4);
     transform:translate(-50%,-50%);opacity:0}
 
   /* ---------- axis readout strip ---------- */
@@ -228,6 +229,9 @@
   const clamp = (v,a,b) => Math.min(Math.max(v,a),b);
   const $ = id => document.getElementById(id);
   const K = ['x','y','z'];
+  // 実機で前後G(Y)の符号が加速/減速と逆だったため、生値の時点で反転しておく。
+  // ここを直せば円の表示・イベント判定・GPS勾配補正すべてに一貫して効く。
+  const AXIS_SIGN = {x:-1, y:-1, z:1};
 
   /* ---------- 街乗り診断のチューニング値 ----------
      実走して調整する前提の初期値。業界標準値は未確認。 */
@@ -386,7 +390,7 @@
     lastRaw = {x:(a.x||0)/9.81, y:(a.y||0)/9.81, z:(a.z||0)/9.81};
     const prev = {...gs};
     K.forEach(k=>{
-      g[k]  = lastRaw[k] - offset[k];
+      g[k]  = (lastRaw[k] - offset[k]) * AXIS_SIGN[k];
       gs[k] = gs[k] + (g[k]-gs[k])*EMA;
       peak[k] = Math.max(peak[k], Math.abs(g[k]));
     });
@@ -468,32 +472,35 @@
     $('stEv').textContent=r.evRate.toFixed(1)+' 回/分';
   }
 
-  /* GRヤリスのGモニター(取扱説明書の図)を参考にした軌跡表示。実車の
-     アルゴリズムは検証できないため、直近5秒程度のGの推移を新しいほど
-     濃く・古いほど薄く消える点群として描く、という解釈で実装している。 */
-  const TRAIL_FADE_MS = 5000, TRAIL_MIN_GAP_MS = 140, TRAIL_MAX = 40;
-  let trail = [], lastTrailPush = 0, trailEls = [], lastCx = 0, lastCy = 0;
+  /* GRヤリスのGモニター(取扱説明書の図)を参考にした「最大Gの軌跡」表示。
+     時間で消える履歴ではなく、方向ごとに到達した最大Gを記録し続け、走行
+     するほど円状に埋まっていく envelope として実装する。角度を24分割し、
+     各セクターでその方向の最大到達点だけを保持・更新する。 */
+  const RING_SECTORS = 24;
+  let ring = new Array(RING_SECTORS).fill(null);   // {cx,cy,mag} | null
+  let trailEls = [], lastCx = 0, lastCy = 0;
   function ensureTrailPool(){
     const c = $('trail');
-    while(trailEls.length < TRAIL_MAX){
+    while(trailEls.length < RING_SECTORS){
       const d = document.createElement('div');
       d.className = 'tdot';
       c.appendChild(d);
       trailEls.push(d);
     }
   }
-  function updateTrail(now){
-    if(now - lastTrailPush >= TRAIL_MIN_GAP_MS){
-      trail.push({cx:lastCx, cy:lastCy, t:now});
-      lastTrailPush = now;
-    }
-    while(trail.length && now - trail[0].t > TRAIL_FADE_MS) trail.shift();
-    if(trail.length > TRAIL_MAX) trail.splice(0, trail.length - TRAIL_MAX);
+  function updateRing(cx,cy){
+    const mag = Math.hypot(cx,cy);
+    if(mag < 2) return;   // ほぼ中心(≈0G)はどの方向か定まらないため無視
+    let a = Math.atan2(cy,cx); if(a<0) a += 2*Math.PI;
+    const idx = Math.floor(a/(2*Math.PI/RING_SECTORS)) % RING_SECTORS;
+    const cur = ring[idx];
+    if(!cur || mag > cur.mag) ring[idx] = {cx,cy,mag};
+  }
+  function renderRing(){
     for(let i=0;i<trailEls.length;i++){
-      const p = trail[i], el = trailEls[i];
+      const p = ring[i], el = trailEls[i];
       if(!p){ el.style.opacity=0; continue; }
-      const life = clamp(1 - (now-p.t)/TRAIL_FADE_MS, 0, 1);
-      el.style.opacity = (life*0.6).toFixed(2);
+      el.style.opacity = '0.8';
       el.style.top  = `calc(50% + ${p.cy}%)`;
       el.style.left = `calc(50% + ${p.cx}%)`;
     }
@@ -502,7 +509,6 @@
   /* ---------- render ---------- */
   let tab='mon', tick=0;
   function render(){
-    const now = performance.now();
     if(dirty && tab==='mon'){
       dirty=false;
       $('vx').textContent=(g.x>=0?'+':'')+g.x.toFixed(2);
@@ -512,11 +518,12 @@
       $('py').textContent=peak.y.toFixed(2);
       $('pz').textContent=peak.z.toFixed(2);
       lastCx=clamp(g.x/MAX_G,-1,1)*50; lastCy=clamp(-g.y/MAX_G,-1,1)*50;
+      updateRing(lastCx,lastCy);
       const dot=$('dot'), glow=$('glow');
       dot.style.top=`calc(50% + ${lastCy}%)`;  dot.style.left=`calc(50% + ${lastCx}%)`;
       glow.style.top=`calc(50% + ${lastCy*.9}%)`; glow.style.left=`calc(50% + ${lastCx*.9}%)`;
     }
-    if(tab==='mon') updateTrail(now);
+    if(tab==='mon') renderRing();
     if(tab==='score' && ++tick%15===0) renderScore();
     requestAnimationFrame(render);
   }
@@ -538,10 +545,11 @@
   /* ---------- buttons ---------- */
   $('zero').addEventListener('click',()=>{
     offset={...lastRaw};
+    ring = new Array(RING_SECTORS).fill(null);
     const b=$('zero'), t=b.innerHTML; b.innerHTML='完了 ✓';
     setTimeout(()=>{b.innerHTML=t;},1000); dirty=true;
   });
-  $('reset').addEventListener('click',()=>{ peak={x:0,y:0,z:0}; trail=[]; dirty=true; });
+  $('reset').addEventListener('click',()=>{ peak={x:0,y:0,z:0}; ring=new Array(RING_SECTORS).fill(null); dirty=true; });
   $('newSession').addEventListener('click',newSession);
 
   /* ---------- sensor ---------- */
